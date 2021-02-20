@@ -24,7 +24,7 @@ https://docs.anaconda.com/anaconda/install/linux/
 
         conda create -n Know_Your_Options python=3.6
 
-        conda activate Portfolio_Selection
+        conda activate Know_Your_Options
 
         pip install ipykernel
         
