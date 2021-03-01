@@ -1,6 +1,6 @@
 # Know_Your_Options
 
-study the basic conceots of trading options.
+Study the basic concepts of Options trading.
 
 ## Setup
 
