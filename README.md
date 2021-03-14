@@ -30,7 +30,6 @@ https://docs.anaconda.com/anaconda/install/linux/
         
         python -m ipykernel install --user --name=Know_Your_Options
 
-
 ## 3. Install Packages
 
 ### Core Data Analytics
