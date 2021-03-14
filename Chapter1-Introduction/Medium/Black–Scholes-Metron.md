@@ -14,23 +14,23 @@ to determine the price of vanilla Europrean options:
 
 For pricing a Call-Option:
 
-$$\textbf{C} = S * N (d_1) - K * e^{-r_k,f *T}*N(d_2)$$
+$\textbf{C} = S * N (d_1) - K * e^{-r_k,f *T}*N(d_2)$
 
 For pricing a Put-Option:
 
- $$\textbf{P} = K * e^{−r_k,f*T)}N(−d_2)−SN(−d_1)$$
+$\textbf{P} = K * e^{−r_k,f*T)}N(−d_2)−SN(−d_1)$
 
 
 
 ##### where
 
-$$
+$
 d_1 = \frac{\ln(\frac{S}{K}) + (r + \frac{stdev^2}{2})t}{s \cdot \sqrt{t}}
-$$
+$
 
-$$
+$
 d_2 = d_1 - s \cdot \sqrt{t} = \frac{\ln(\frac{S}{K}) + (r - \frac{stdev^2}{2})t}{s \cdot \sqrt{t}}
-$$
+$
 
 ##### with 
 
@@ -55,7 +55,7 @@ The greeks are the partial-derivatives of the Black-Scholes equation with respec
 
 Credit Spread Ratios
 
-$$Risk Ratio = \frac{Net \Theta} {\sqrt{Net \Delta^2 + Net \Gamma^2}}$$
+$Risk Ratio = \frac{Net \Theta} {\sqrt{Net \Delta^2 + Net \Gamma^2}}$
 
 $\Theta$ = the partial-derivative with respect to time until expiration and losing value per day
 
@@ -66,4 +66,4 @@ $\Delta$ = the first partial-derivative with respect to the underlying asset and
 $\Gamma$ = the 2nd partial-derivative with respect to the underlying asset
 
 
-$$Cost Ratio = \frac{Net Credit}{Share Cost + Margin Required}$$
+$Cost Ratio = \frac{Net Credit}{Share Cost + Margin Required}$
