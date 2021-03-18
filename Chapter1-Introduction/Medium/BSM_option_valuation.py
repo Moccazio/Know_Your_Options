@@ -10,8 +10,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from scipy.integrate import quad
 mpl.rcParams['font.family'] = 'serif'
-plt.style.use('seaborn-muted')
-
+plt.style.use('dark_background')
 #
 # Helper Functions
 #
