@@ -7,100 +7,53 @@ import numpy as np
 import yfinance as yf
 from yahoo_fin.stock_info import get_quote_table
 
-def option_data(ticker):
-    
-    opt_sym = yf.Ticker(ticker)
-    info = get_quote_table(ticker)
-    current_price = info["Quote Price"]
-    yield_re = re.compile(r"\((?P<value>(\d+\.\d+))%\)")
-    try:
-        dividend_yield = float(
-            yield_re.search(info["Forward Dividend & Yield"])["value"]
-        )
-    except (KeyError, ValueError, TypeError):
-        dividend_yield = 0.0
-    exps = opt_sym.options
-    options_ = pd.DataFrame()
-    def create_option(row):
-        volatility = ql.BlackConstantVol(
-            today,
-            ql.UnitedStates(),
-            row["volatility"],
-            ql.Business252()
-        )
-        option = ql.VanillaOption(
-            ql.PlainVanillaPayoff(ql.Option.Call, row["strike"]),
-            exercise
-        )
-        process = ql.BlackScholesMertonProcess(
-            ql.QuoteHandle(underlying),
-            ql.YieldTermStructureHandle(dividendYield),
-            ql.YieldTermStructureHandle(riskFreeRate),
-            ql.BlackVolTermStructureHandle(volatility),
-        )
-        # Calculate it out from the last price
-        imp_vol = option.impliedVolatility(row["lastPrice"], process)
-        implied_volatility = ql.BlackConstantVol(
-            today,
-            ql.UnitedStates(),
-            imp_vol,
-            ql.Business252()
-        )
-        process = ql.BlackScholesMertonProcess(
-            ql.QuoteHandle(underlying),
-            ql.YieldTermStructureHandle(dividendYield),
-            ql.YieldTermStructureHandle(riskFreeRate),
-            ql.BlackVolTermStructureHandle(implied_volatility),
-        )
-        option.setPricingEngine(
-            ql.FdBlackScholesVanillaEngine(process, 1000, 1000)
-        )
-        return {
-            "Name": row["contractSymbol"],
-            "Strike": row["strike"],
-            "Last": row["lastPrice"],
-            "Bid": row["bid"],
-            "Ask": row["ask"],
-            "NPV": option.NPV(),
-            "Delta": option.delta(),
-            "Gamma": option.gamma(),
-            "Theta": option.theta() / 365,
-            "Volatility": imp_vol * 100,
-            "IV": row["impliedVolatility"]
-        }
-        options = calls.apply(create_option, axis=1, result_type="expand")
-        
-    for e in exps:
-        expiration = pd.to_datetime(e) + datetime.timedelta(days = 1)
-        opt = opt_sym.option_chain(e)   
-        calls = pd.DataFrame().append(opt.calls).append(opt.puts)
-        # Setup instruments for Black-Scholes pricing
-        today = ql.Date.todaysDate()
-        underlying = ql.SimpleQuote(current_price)
-        exercise = ql.AmericanExercise(
-            today,
-        ql.Date(expiration.day, expiration.month, expiration.year))
-        dividendYield = ql.FlatForward(
-            today, dividend_yield, ql.Actual360()
-        )
-        riskFreeRate = ql.FlatForward(today, 0.0008913, ql.Actual360())
-        # Filter down to only OTM strikes
-        calls = calls[calls["strike"] >= current_price * 1.025]
-        calls = calls[calls["strike"] <= current_price * 1.10]
-        # Parse out implied volatility
-        calls = calls.assign(
-        volatility=calls["impliedVolatility"],
-        )
-        options = calls.apply(create_option, axis=1, result_type="expand")
-        options_ = options_.append(options, ignore_index=True) 
-        options_['Ticker']=ticker
-        options_['UnderlyingPrice'] = current_price 
-    return options_ [['UnderlyingPrice', 'Name', 'Strike', 'Last', 'Bid', 'Ask', 'NPV', 'Delta', 'Gamma', 'Theta', 'Volatility', 'IV', 'Ticker']]
+def filter_by_moneyness(df, pct_cutoff=0.2):
+    crit1 = (1-pct_cutoff)*df.Strike < df.Underlying_Price
+    crit2 = df.Underlying_Price < (1+pct_cutoff)*df.Strike
+    return (df.loc[crit1 & crit2].reset_index(drop=True))
 
+def options_chain(symbol):
+    info = get_quote_table(symbol)
+    current_price = info["Quote Price"]
+    tk = yf.Ticker(symbol)
+    exps = tk.options
+    options = pd.DataFrame()
+    for e in exps:
+        opt = tk.option_chain(e)
+        opt = pd.DataFrame().append(opt.calls).append(opt.puts)
+        opt['expirationDate'] = e
+        options = options.append(opt, ignore_index=True)
+    options['expirationDate'] = pd.to_datetime(options['expirationDate']) + datetime.timedelta(days = 1)
+    options['yte'] = (options['expirationDate'] - datetime.datetime.today()).dt.days / 365
+    options['dte'] = (options['expirationDate'] - datetime.datetime.today()).dt.days
+    options['CALL'] = options['contractSymbol'].str[4:].apply(
+        lambda x: "C" in x)
+    options[['bid', 'ask', 'strike']] = options[['bid', 'ask', 'strike']].apply(pd.to_numeric)
+    options['midpoint'] = (options['bid'] + options['ask']) / 2 
+    options['spread'] =  (options['ask'] - options['bid'])
+    options['spread_pct'] = (options['ask'] - options['bid'])/options['ask'] 
+    options['Underlying'] = current_price 
+    options = options.drop(columns = ['contractSize', 'currency', 'change', 'percentChange', 'lastTradeDate'])
+    return pd.DataFrame({
+            "Underlying": current_price,
+            "Ticker": symbol,
+            "Expiry": options["expirationDate"],
+            "YTE": options["yte"],
+            "DTE": options["dte"],
+            "Call": options["CALL"],
+            "IV": options["impliedVolatility"],        
+            "Strike": options["strike"],
+            "Last": options["lastPrice"],
+            "Bid": options["bid"],
+            "Ask": options["ask"],
+            "Midpoint": options['midpoint'],
+            "Spread": options['spread'],
+            "Spread_Pct": options['spread_pct'],
+            "AKA": options["contractSymbol"]})
 
 from yahoo_fin.stock_info import tickers_sp500
 
-tickers =  tickers_sp500()[0:100]
+tickers =  tickers_sp500()[0:50]
 
 
 def _get_option_data(symbols):
@@ -112,8 +65,7 @@ def _get_option_data(symbols):
     for i, sym in enumerate(symbols, start=1):
         if not pd.isnull(sym):
             try:
-                data_ = option_data(ticker)
-                data_['Ticker'] = sym
+                data_ = option_data(sym)
                 _merged.append(data_)
                 
             except Exception as e:
