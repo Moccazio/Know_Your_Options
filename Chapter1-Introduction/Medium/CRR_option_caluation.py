@@ -11,7 +11,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 mpl.rcParams['font.family'] = 'serif'
 from BSM_option_valuation import BSM_call_value
-plt.style.use('seaborn-muted')
+plt.style.use('dark_background')
 #
 # Model Parameters
 #
