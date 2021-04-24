@@ -1,5 +1,29 @@
 import pandas as pd
 pd.options.display.float_format = '{:,.6f}'.format
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+import numpy as np
+from pandas.tseries.offsets import BDay
+end = pd.datetime.today().date()
+start = end - 252 * BDay() * 1 # One year historical data
+import yfinance as yf
+
+class Stock:
+    def __init__(self, ticker, start=None, end=None):
+
+        self.ticker = ticker
+
+        try:
+            self._ticker = yf.Ticker(self.ticker)
+
+            if not (start or end):
+                self.df = self.df_ = self._ticker.history(period='max', auto_adjust=True)
+                
+            else:
+                self.df = self.df_ = self._ticker.history(start=start, end=end, auto_adjust=True)
+
+        except Exception as err:
+            print(err)
 
 def filter_by_moneyness(df, pct_cutoff=0.2):
     crit1 = (1-pct_cutoff)*df.Strike < df.Underlying
@@ -12,14 +36,12 @@ def know_your_options(ticker, option="Call"):
     import utils 
     import QuantLib as ql 
     import pandas as pd
-    import yfinance as yf
     import numpy as np
     import matplotlib.pyplot as plt
     from yahoo_fin.stock_info import get_quote_table
     plt.style.use('dark_background')
     import warnings
     warnings.simplefilter(action='ignore', category=FutureWarning)
-                
     info = get_quote_table(ticker)
     current_price = info["Quote Price"]
     yield_re = re.compile(r"\((?P<value>(\d+\.\d+))%\)")
@@ -27,32 +49,26 @@ def know_your_options(ticker, option="Call"):
         dividend_rate = float(yield_re.search(info["Forward Dividend & Yield"])["value"])
     except (KeyError, ValueError, TypeError):
         dividend_rate = 0.0      
+        
+    stk_sigma = np.std(np.log(Stock(ticker, start, end).df.Close.pct_change() + 1)) * 252 ** 0.5  
 
     def create_call(row):
-    
         calculation_date = ql.Date.todaysDate()
         ql.Settings.instance().evaluationDate = calculation_date 
-        
         risk_free_rate = 0.0001
-        
+        sigma = ql.SimpleQuote(stk_sigma)
         day_count = ql.Actual365Fixed()
         settlement = calculation_date
         calendar = ql.UnitedStates()
-
         exercise = ql.AmericanExercise(settlement, ql.Date(expiration.day, expiration.month, expiration.year))
         payoff = ql.PlainVanillaPayoff(ql.Option.Call, row["strike"])
         american_option = ql.VanillaOption(payoff,exercise)
-        
         spot_handle = ql.QuoteHandle(ql.SimpleQuote(current_price))
         flat_ts = ql.YieldTermStructureHandle(ql.FlatForward(calculation_date, risk_free_rate, day_count))
         dividend_yield = ql.YieldTermStructureHandle(ql.FlatForward(calculation_date, dividend_rate, day_count))
-        flat_vol_ts = ql.BlackVolTermStructureHandle(ql.BlackConstantVol(calculation_date, calendar, row["impliedVolatility"], day_count))
-        bsm_process = ql.BlackScholesMertonProcess(spot_handle, dividend_yield, flat_ts, flat_vol_ts)
-            
+        flat_vol_ts = ql.BlackVolTermStructureHandle(ql.BlackConstantVol(calculation_date, calendar, ql.QuoteHandle(sigma), day_count))
+        bsm_process = ql.BlackScholesMertonProcess(spot_handle, dividend_yield, flat_ts, flat_vol_ts) 
         american_option.setPricingEngine(ql.FdBlackScholesVanillaEngine(bsm_process, 1000, 1000))
-        
-  
-
         return {"Underlying": current_price,
                 "Ticker": ticker,
                 "Type": row["type"],
@@ -73,30 +89,22 @@ def know_your_options(ticker, option="Call"):
                 "AKA": row["contractSymbol"]}        
         
     def create_put(row):
-
         calculation_date = ql.Date.todaysDate()
         ql.Settings.instance().evaluationDate = calculation_date
-        
         risk_free_rate = 0.0001
+        sigma = ql.SimpleQuote(stk_sigma)
         day_count = ql.Actual365Fixed()
         settlement = calculation_date
         calendar = ql.UnitedStates()
-        
         exercise = ql.AmericanExercise(settlement, ql.Date(expiration.day, expiration.month, expiration.year))
         payoff = ql.PlainVanillaPayoff(ql.Option.Put, row["strike"])
-        american_option = ql.VanillaOption(payoff,exercise)
-        
+        american_option = ql.VanillaOption(payoff,exercise)   
         spot_handle = ql.QuoteHandle(ql.SimpleQuote(current_price))
         flat_ts = ql.YieldTermStructureHandle(ql.FlatForward(calculation_date, risk_free_rate, day_count))
         dividend_yield = ql.YieldTermStructureHandle(ql.FlatForward(calculation_date, dividend_rate, day_count))
-        flat_vol_ts = ql.BlackVolTermStructureHandle(ql.BlackConstantVol(calculation_date, calendar, row["impliedVolatility"], day_count))
-        bsm_process = ql.BlackScholesMertonProcess(spot_handle, dividend_yield, flat_ts, flat_vol_ts)
-            
-        american_option.setPricingEngine(ql.FdBlackScholesVanillaEngine(bsm_process, 100, 100))
-        
-    
-        
-
+        flat_vol_ts = ql.BlackVolTermStructureHandle(ql.BlackConstantVol(calculation_date, calendar, ql.QuoteHandle(sigma), day_count))
+        bsm_process = ql.BlackScholesMertonProcess(spot_handle, dividend_yield, flat_ts, flat_vol_ts)           
+        american_option.setPricingEngine(ql.FdBlackScholesVanillaEngine(bsm_process, 1000, 1000))
         return {"Underlying": current_price,
                 "Ticker": ticker,
                 "Type": row["type"],
