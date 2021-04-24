@@ -1,4 +1,4 @@
-pyex
+sys
 pandas
 numpy
 scipy
@@ -7,3 +7,8 @@ seaborn
 scikit-learn
 tensorflow
 keras
+math
+datetime
+re
+QuantLib
+yfinance
